@@ -125,7 +125,7 @@ def low_rank_solver(A, tensors, r, nmax = 1000, err_tol = 1e-4):
 
 if __name__ == "__main__":
     
-    load_tensor = 1
+    load_tensor = 0
     n = 200 # 20, 200
     
     if load_tensor:
@@ -178,7 +178,7 @@ if __name__ == "__main__":
     
     p = A_first.shape[1]
     # r = int(np.ceil(p / 3))
-    r = 5
+    r = 3
     
     U, V, W, approx_left = low_rank_solver(A, [A_first, B_first, C_first], r)
     final_err = lin.norm(approx_left - B1.flatten())
