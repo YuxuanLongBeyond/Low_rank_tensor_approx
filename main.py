@@ -98,21 +98,21 @@ def compute_vec_tensor(U, V, W):
 def energy_norm(A, U):
     return np.sum(U * (A.dot(U)), axis = 0)
 
-def solve_linear_system(M, b, epsilon = 1e-5):
+def solve_linear_system(M, b, epsilon = 1e-4):
     with warnings.catch_warnings():
-        # warnings.filterwarnings('error')
+        warnings.filterwarnings('error')
         try:
             x = lin.solve(M, b, assume_a = 'pos')
         except lin.LinAlgWarning:
             print('Badly conditioned matrix found, add damping to solve...')
             # x = lin.solve(M.T.dot(M) + epsilon * np.eye(b.shape[0]), M.T.dot(b), assume_a = 'pos')
-            x = lin.solve(M + epsilon * np.eye(b.shape[0]), b, assume_a = 'pos')
+            x = lin.solve(M + 0.1 * epsilon * np.eye(b.shape[0]), b, assume_a = 'pos')
         except lin.LinAlgError:
             print('Singular matrix found, add damping...')
             x = lin.solve(M + epsilon * np.eye(b.shape[0]), b, assume_a = 'pos')
         return x
 
-def low_rank_solver(A, tensors, X, r, nmax = 200, err_tol = 1e-3, check_period = 1):
+def low_rank_solver(A, tensors, X, r, nmax = 200, err_tol = 1e-3, check_period = 2):
     A_hat, B_hat, C_hat = tensors
     
     b = X.flatten()
@@ -138,13 +138,16 @@ def low_rank_solver(A, tensors, X, r, nmax = 200, err_tol = 1e-3, check_period =
     # V = col_normalize(V)
     # V_V = V.T.dot(V)
 
-    V_V = np.eye(r)
+    # V_V = np.eye(r)
     # W_W = np.eye(r)
     # U_U = np.eye(r)
     I = np.eye(n)
     
-    scale = np.exp(-5 * r / n)
-    ortho_flag = 1
+    # scale_base = np.exp(-5 * r / n)
+    scale_base = 0.5
+    scale = scale_base
+    
+    ortho_flag = 0
     
     if ortho_flag:
         lam, Q = lin.eig(A)
@@ -181,7 +184,7 @@ def low_rank_solver(A, tensors, X, r, nmax = 200, err_tol = 1e-3, check_period =
             w =  Q_augment.dot((Q_augment_T.dot(tem)) / (lam_augment + np.kron(alpha, np.ones((n, )))))
             W = np.reshape(w, (r, n)).T
             
-            if i >= 3:
+            if i >= 2:
                 ortho_flag = 0
         else:
             V = col_normalize(V)
@@ -219,13 +222,14 @@ def low_rank_solver(A, tensors, X, r, nmax = 200, err_tol = 1e-3, check_period =
             
             if np.abs(err - err_next) < err_tol * scale and r < n:
                 
-                r_delta = min(n - r, int((err / err_tol) ** (1)))
+                r_delta = min(n - r, int((err_next / err_tol) ** (1)))
                 r += r_delta
                 print('Error almost unchanged, increase tensor rank to ', r)
                 U = np.concatenate((U, np.random.normal(0, 1, (n, r_delta))), axis = 1)
                 V = np.concatenate((V, np.random.normal(0, 1, (n, r_delta))), axis = 1)
                 W = np.concatenate((W, np.random.normal(0, 1, (n, r_delta))), axis = 1)
-                scale *= 0.5
+                if scale >= 4e-2:
+                    scale *= scale_base
             err = err_next
         else:
             print('Iteration ', i, ' finished')
@@ -237,7 +241,7 @@ def low_rank_solver(A, tensors, X, r, nmax = 200, err_tol = 1e-3, check_period =
 if __name__ == "__main__":
     
     load_tensor = 0
-    n = 100 # 30
+    n = 200 # 30
     
     if load_tensor:
         B1 = np.load('./data/B1.npy')
@@ -289,8 +293,7 @@ if __name__ == "__main__":
     # X = direct_solver(B1, A)
     # print('Time spent for the direct solver: ', time.perf_counter() - t_start, ' seconds')
     
-    # p = int(np.ceil(r1 / 3))
-    p = int(n / 3)
+    p = min(int(n / (np.log2(n / 25) + 1)), n)
     
     U, V, W, approx_left = low_rank_solver(A, [A_first, B_first, C_first], B1, p)
     final_err = lin.norm(approx_left - B1.flatten()) / lin.norm(B1.flatten())
