@@ -129,12 +129,7 @@ def low_rank_solver(A, tensors, X, r, nmax = 200, err_tol = 1e-3, check_period =
     V = V[:, :r]
     W = W[:, :r]
     
-    # U = np.random.normal(0, 1, (n, r))
-    # V = np.random.normal(0, 1, (n, r))
-    # W = np.random.normal(0, 1, (n, r))
 
-    # V, _ = lin.qr(V, mode='economic')
-    
     # V = col_normalize(V)
     # V_V = V.T.dot(V)
 
@@ -220,9 +215,9 @@ def low_rank_solver(A, tensors, X, r, nmax = 200, err_tol = 1e-3, check_period =
             print('Relative error at iteration ', i, ': ', err_next)
             
             
-            if np.abs(err - err_next) < err_tol * scale and r < n:
+            if np.abs(err - err_next) < err_tol * scale and r < n and err_next > err_tol:
                 
-                r_delta = min(n - r, int((err_next / err_tol) ** (1)))
+                r_delta = min(n - r, round((err_next / err_tol) ** (1)))
                 r += r_delta
                 print('Error almost unchanged, increase tensor rank to ', r)
                 U = np.concatenate((U, np.random.normal(0, 1, (n, r_delta))), axis = 1)
@@ -241,7 +236,7 @@ def low_rank_solver(A, tensors, X, r, nmax = 200, err_tol = 1e-3, check_period =
 if __name__ == "__main__":
     
     load_tensor = 0
-    n = 200 # 30
+    n = 150 # 30
     
     if load_tensor:
         B1 = np.load('./data/B1.npy')
@@ -293,15 +288,19 @@ if __name__ == "__main__":
     # X = direct_solver(B1, A)
     # print('Time spent for the direct solver: ', time.perf_counter() - t_start, ' seconds')
     
-    p = min(int(n / (np.log2(n / 25) + 1)), n)
+    p = round(n / (max(np.log2(n / 25), 0) + 1))
     
-    U, V, W, approx_left = low_rank_solver(A, [A_first, B_first, C_first], B1, p)
-    final_err = lin.norm(approx_left - B1.flatten()) / lin.norm(B1.flatten())
-    print(final_err)
+    # t_start = time.perf_counter()
+    # U, V, W, approx_left = low_rank_solver(A, [A_first, B_first, C_first], B1, p)
+    # print('Time spent for the low-rank solver: ', time.perf_counter() - t_start, ' seconds')
+    # final_err = lin.norm(approx_left - B1.flatten()) / lin.norm(B1.flatten())
+    # print(final_err)
     
-    # U, V, W, approx_left = low_rank_solver(A, [A_second, B_second, C_second], B2, p)
-    # final_err = lin.norm(approx_left - B2.flatten()) / lin.norm(B2.flatten())
-    # print(final_err)    
+    t_start = time.perf_counter()
+    U, V, W, approx_left = low_rank_solver(A, [A_second, B_second, C_second], B2, p)
+    print('Time spent for the low-rank solver: ', time.perf_counter() - t_start, ' seconds')
+    final_err = lin.norm(approx_left - B2.flatten()) / lin.norm(B2.flatten())
+    print(final_err)    
     
     # x_approx = compute_vec_tensor(U, V, W)
     # X_approx = np.reshape(x_approx, (n, n, n))
