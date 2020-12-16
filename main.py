@@ -19,10 +19,11 @@ np.random.seed(2020)
 def col_normalize(X):
     return X / np.sqrt(np.sum(X ** 2, axis = 0))
 
-def tensor2matrix(X, mode, tensor_dim):
-    n = X.shape[tensor_dim - mode]
-    X = np.moveaxis(X, tensor_dim - mode, -1)
-    return np.reshape(X, (n, -1))
+def tensor2matrix(X, mode):
+    num_dim = len(X.shape)
+    n = X.shape[num_dim - mode]
+    X = np.moveaxis(X, num_dim - mode, -1)
+    return np.reshape(X, (-1, n)).T
 
 def matrix2tensor(X1, out_shape):
     # out_shape should be like (n3, n2, n1)
@@ -33,9 +34,9 @@ def ALS_solver(X, r, nmax = 1000, err_tol = 1e-4):
     B = np.random.normal(0, 1, (n2, r))
     C = np.random.normal(0, 1, (n3, r))
     
-    X1 = tensor2matrix(X, 1, 3)
-    X2 = tensor2matrix(X, 2, 3)
-    X3 = tensor2matrix(X, 3, 3)
+    X1 = tensor2matrix(X, 1)
+    X2 = tensor2matrix(X, 2)
+    X3 = tensor2matrix(X, 3)
     
     X_norm = lin.norm(X1, 'fro')
     err = np.inf
@@ -236,7 +237,7 @@ def low_rank_solver(A, tensors, X, r, nmax = 200, err_tol = 1e-3, check_period =
 if __name__ == "__main__":
     
     load_tensor = 0
-    n = 150 # 30
+    n = 200 # 30
     
     if load_tensor:
         B1 = np.load('./data/B1.npy')
@@ -268,7 +269,7 @@ if __name__ == "__main__":
         np.save('./data/B1.npy', B1)
         np.save('./data/B2.npy', B2)
         
-
+        t_start = time.perf_counter()
         A_first, B_first, C_first, X_hat_first = ALS_solver(B1, r = r1)
         np.save('./data/A_first.npy', A_first)
         np.save('./data/B_first.npy', B_first)
@@ -278,6 +279,7 @@ if __name__ == "__main__":
         np.save('./data/A_second.npy', A_second)
         np.save('./data/B_second.npy', B_second)
         np.save('./data/C_second.npy', C_second)
+        print('Time spent for the CP decomposition: ', time.perf_counter() - t_start, ' seconds')
     
     
     A = 2 * np.eye(n) + np.diag(-np.ones((n - 1, )), 1) + np.diag(-np.ones((n - 1, )), -1)
@@ -289,12 +291,13 @@ if __name__ == "__main__":
     # print('Time spent for the direct solver: ', time.perf_counter() - t_start, ' seconds')
     
     p = round(n / (max(np.log2(n / 25), 0) + 1))
+    # p = 60
     
-    # t_start = time.perf_counter()
-    # U, V, W, approx_left = low_rank_solver(A, [A_first, B_first, C_first], B1, p)
-    # print('Time spent for the low-rank solver: ', time.perf_counter() - t_start, ' seconds')
-    # final_err = lin.norm(approx_left - B1.flatten()) / lin.norm(B1.flatten())
-    # print(final_err)
+    t_start = time.perf_counter()
+    U, V, W, approx_left = low_rank_solver(A, [A_first, B_first, C_first], B1, p)
+    print('Time spent for the low-rank solver: ', time.perf_counter() - t_start, ' seconds')
+    final_err = lin.norm(approx_left - B1.flatten()) / lin.norm(B1.flatten())
+    print(final_err)
     
     t_start = time.perf_counter()
     U, V, W, approx_left = low_rank_solver(A, [A_second, B_second, C_second], B2, p)
