@@ -284,12 +284,11 @@ def low_rank_solver(A, tensors, X, p, nmax = 200, err_tol = 1e-3, check_period =
     
 
 if __name__ == "__main__":
-    
-    load_tensor = 0  # flag to load stored tensors
-    use_direct_solve = 0 # flag to run direct solver
     n = 200
     p0 = round(n / (max(np.log2(n / 25), 0) + 1))   # initial tensor rank  
+    use_direct_solve = 0 # flag to run direct solver
     
+    load_tensor = 0  # flag to load stored tensors
     if load_tensor:
         B1 = np.load('./data/B1.npy')
         B2 = np.load('./data/B2.npy')
