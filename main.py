@@ -2,7 +2,7 @@
 """
 Created on Sat Nov 28 11:38:22 2020
 
-@author: Yuxuan Long, Yuqi Wang
+@author: Yuxuan Long
 """
 
 import os
@@ -20,16 +20,41 @@ def col_normalize(X):
     return X / np.sqrt(np.sum(X ** 2, axis = 0))
 
 def tensor2matrix(X, mode):
+    """
+    Return mu-mode matricization from a given tensor
+    """
     num_dim = len(X.shape)
     n = X.shape[num_dim - mode]
     X = np.moveaxis(X, num_dim - mode, -1)
     return np.reshape(X, (-1, n)).T
 
 def matrix2tensor(X1, out_shape):
-    # out_shape should be like (n3, n2, n1)
+    """
+    Input: 1-mode matricization
+    Output: tensor with size like (n3, n2, n1)
+    """
     return np.reshape(X1.T, out_shape)
 
 def ALS_solver(X, r, nmax = 1000, err_tol = 1e-4):
+    """
+
+    Parameters
+    ----------
+    X : tensor like B1
+    r : tensor rank
+    nmax : maximum number of iterations
+        The default is 1000.
+    err_tol : tolerance for relative residual error, optional
+        The default is 1e-4.
+
+    Returns
+    -------
+    A : matrix with size n by r
+    B : matrix with size n by r
+    C : matrix with size n by r
+    X_hat : approximated tensor with same shape as X
+
+    """
     n3, n2, n1 = X.shape
     B = np.random.normal(0, 1, (n2, r))
     C = np.random.normal(0, 1, (n3, r))
@@ -42,7 +67,6 @@ def ALS_solver(X, r, nmax = 1000, err_tol = 1e-4):
     err = np.inf
     
     B = col_normalize(B)
-    # B, _ = lin.qr(B, mode='economic')
     i = 0
     while (err >= err_tol) and i < nmax:
         C = col_normalize(C)
@@ -69,6 +93,9 @@ def ALS_solver(X, r, nmax = 1000, err_tol = 1e-4):
     return A, B, C, X_hat
 
 def direct_solver(X, A):
+    """
+    Directly solving the linear system without approximation
+    """
     n = A.shape[0]
     
     A = sp.csc_matrix(A)
@@ -84,19 +111,22 @@ def direct_solver(X, A):
     # err = lin.norm(A_tilde.dot(x) - shaped_X)
     return np.reshape(x, X.shape)
 
-def kron_1D(a, b):
-    return np.outer(a, b).flatten()
-
 def compute_vec_tensor(U, V, W):
+    """
+    Return vectorized tensor from CP decomposition 
+    """
+
     # return np.sum(lin.khatri_rao(lin.khatri_rao(U, V), W), axis = 1)
     r = U.shape[1]
     out = 0
     for i in range(r):
-        # out += kron_1D(kron_1D(U[:, i], V[:, i]), W[:, i])
         out += lin.khatri_rao(lin.khatri_rao(np.expand_dims(U[:, i], 1), np.expand_dims(V[:, i], 1)), np.expand_dims(W[:, i], 1))
     return np.squeeze(out)
     
 def energy_norm(A, U):
+    """
+    Return tr(U' A U)
+    """
     return np.sum(U * (A.dot(U)), axis = 0)
 
 def solve_linear_system(M, b, epsilon = 1e-4):
@@ -113,49 +143,68 @@ def solve_linear_system(M, b, epsilon = 1e-4):
             x = lin.solve(M + epsilon * np.eye(b.shape[0]), b, assume_a = 'pos')
         return x
 
-def low_rank_solver(A, tensors, X, r, nmax = 200, err_tol = 1e-3, check_period = 2):
+def low_rank_solver(A, tensors, X, p, nmax = 200, err_tol = 1e-3, check_period = 2, ortho_flag = 0):
+    """
+    
+
+    Parameters
+    ----------
+    A : SPD matrix with size n by n
+    tensors : tensor (like B1) in CP format
+    X : tensor (like B1) in original form
+    p : tensor rank of approximated solution
+    nmax : maximum number of iterations
+    err_tol : error tolerance
+        The default is 1e-3.
+    check_period : period to compute the new error
+        The default is 2.
+    ortho_flag : flag to allow orthogonalized ALS as initialization
+        The default is 0.
+
+    Returns
+    -------
+    U : matrix with size by n by p
+    V : matrix with size by n by p
+    W : matrix with size by n by p
+    approx_left : evaluated left side of the linear equation, in vectorized form
+
+    Note U, V, W are the CP decomposition of the solution
+    
+    
+    """
     A_hat, B_hat, C_hat = tensors
     
     b = X.flatten()
-    # b = compute_vec_tensor(C_hat, B_hat, A_hat)
     b_norm = lin.norm(b)
     
     n = A.shape[0]
 
+    # initialization
     U = ortho_group.rvs(n)
     V = ortho_group.rvs(n)
     W = ortho_group.rvs(n)
     
-    U = U[:, :r]
-    V = V[:, :r]
-    W = W[:, :r]
+    U = U[:, :p]
+    V = V[:, :p]
+    W = W[:, :p]
     
-
-    # V = col_normalize(V)
-    # V_V = V.T.dot(V)
-
-    # V_V = np.eye(r)
-    # W_W = np.eye(r)
-    # U_U = np.eye(r)
     I = np.eye(n)
     
-    # scale_base = np.exp(-5 * r / n)
     scale_base = 0.5
     scale = scale_base
     
-    ortho_flag = 0
     
     if ortho_flag:
         lam, Q = lin.eig(A)
         lam = np.real(lam)
-        Q_augment = sp.kron(sp.eye(r), Q)
+        Q_augment = sp.kron(sp.eye(p), Q)
         Q_augment_T = Q_augment.T
         lam_augment = np.kron(np.ones((p, )), lam)
     # A = sp.csc_matrix(A)
     
     err = np.inf
 
-    print('Begin with tensor rank ', r)
+    print('Begin with tensor rank ', p)
 
     i = 0
     while (err >= err_tol) and i < nmax:
@@ -166,19 +215,19 @@ def low_rank_solver(A, tensors, X, r, nmax = 200, err_tol = 1e-3, check_period =
             tem = (A_hat.dot((C_hat.T.dot(W)) * (B_hat.T.dot(V))).T).flatten()
             alpha = energy_norm(A, V) + energy_norm(A, W)
             u =  Q_augment.dot((Q_augment_T.dot(tem)) / (lam_augment + np.kron(alpha, np.ones((n, )))))
-            U = np.reshape(u, (r, n)).T
+            U = np.reshape(u, (p, n)).T
             
             U, _ = lin.qr(U, mode='economic')
             tem = (B_hat.dot((C_hat.T.dot(W)) * (A_hat.T.dot(U))).T).flatten()
             alpha = energy_norm(A, W) + energy_norm(A, U)
             v =  Q_augment.dot((Q_augment_T.dot(tem)) / (lam_augment + np.kron(alpha, np.ones((n, )))))
-            V = np.reshape(v, (r, n)).T
+            V = np.reshape(v, (p, n)).T
             
             V, _ = lin.qr(V, mode='economic')
             tem = (C_hat.dot((B_hat.T.dot(V)) * (A_hat.T.dot(U))).T).flatten()
             alpha = energy_norm(A, V) + energy_norm(A, U)
             w =  Q_augment.dot((Q_augment_T.dot(tem)) / (lam_augment + np.kron(alpha, np.ones((n, )))))
-            W = np.reshape(w, (r, n)).T
+            W = np.reshape(w, (p, n)).T
             
             if i >= 2:
                 ortho_flag = 0
@@ -190,7 +239,7 @@ def low_rank_solver(A, tensors, X, r, nmax = 200, err_tol = 1e-3, check_period =
             tem = (A_hat.dot((C_hat.T.dot(W)) * (B_hat.T.dot(V))).T).flatten()
             M = np.kron(W_W * (V.T.dot(A).dot(V)) + V_V * (W.T.dot(A).dot(W)), I) + np.kron(W_W * V_V, A)
             u = solve_linear_system(M, np.expand_dims(tem, axis = 1))
-            U = np.reshape(u, (r, n)).T
+            U = np.reshape(u, (p, n)).T
     
             
             U = col_normalize(U)
@@ -198,7 +247,7 @@ def low_rank_solver(A, tensors, X, r, nmax = 200, err_tol = 1e-3, check_period =
             tem = (B_hat.dot((C_hat.T.dot(W)) * (A_hat.T.dot(U))).T).flatten()
             M = np.kron(U_U * (W.T.dot(A).dot(W)) + W_W * (U.T.dot(A).dot(U)), I) + np.kron(W_W * U_U, A)
             v = solve_linear_system(M, np.expand_dims(tem, axis = 1))
-            V = np.reshape(v, (r, n)).T
+            V = np.reshape(v, (p, n)).T
     
             
             V = col_normalize(V)
@@ -206,7 +255,7 @@ def low_rank_solver(A, tensors, X, r, nmax = 200, err_tol = 1e-3, check_period =
             tem = (C_hat.dot((B_hat.T.dot(V)) * (A_hat.T.dot(U))).T).flatten()
             M = np.kron(V_V * (U.T.dot(A).dot(U)) + U_U * (V.T.dot(A).dot(V)), I) + np.kron(V_V * U_U, A)
             w = solve_linear_system(M, np.expand_dims(tem, axis = 1))
-            W = np.reshape(w, (r, n)).T
+            W = np.reshape(w, (p, n)).T
 
         
         i += 1
@@ -216,11 +265,11 @@ def low_rank_solver(A, tensors, X, r, nmax = 200, err_tol = 1e-3, check_period =
             print('Relative error at iteration ', i, ': ', err_next)
             
             
-            if np.abs(err - err_next) < err_tol * scale and r < n and err_next > err_tol:
+            if np.abs(err - err_next) < err_tol * scale and p < n and err_next > err_tol:
                 
-                r_delta = min(n - r, round((err_next / err_tol) ** (1)))
-                r += r_delta
-                print('Error almost unchanged, increase tensor rank to ', r)
+                r_delta = min(n - p, round((err_next / err_tol) ** (1)))
+                p += r_delta
+                print('Error almost unchanged, increase tensor rank to ', p)
                 U = np.concatenate((U, np.random.normal(0, 1, (n, r_delta))), axis = 1)
                 V = np.concatenate((V, np.random.normal(0, 1, (n, r_delta))), axis = 1)
                 W = np.concatenate((W, np.random.normal(0, 1, (n, r_delta))), axis = 1)
@@ -236,8 +285,10 @@ def low_rank_solver(A, tensors, X, r, nmax = 200, err_tol = 1e-3, check_period =
 
 if __name__ == "__main__":
     
-    load_tensor = 0
-    n = 200 # 30
+    load_tensor = 0  # flag to load stored tensors
+    use_direct_solve = 0 # flag to run direct solver
+    n = 200
+    p0 = round(n / (max(np.log2(n / 25), 0) + 1))   # initial tensor rank  
     
     if load_tensor:
         B1 = np.load('./data/B1.npy')
@@ -251,8 +302,8 @@ if __name__ == "__main__":
         B_second = np.load('./data/B_second.npy')
         C_second = np.load('./data/C_second.npy')
     else:
-        r1 = 4
-        r2 = 15
+        r1 = 4  # for B1
+        r2 = 15 # for B2
         
         if not os.path.exists('./data'):
             os.makedirs('./data')    
@@ -285,27 +336,23 @@ if __name__ == "__main__":
     A = 2 * np.eye(n) + np.diag(-np.ones((n - 1, )), 1) + np.diag(-np.ones((n - 1, )), -1)
     A *= (n + 1) ** 2
     
+    if use_direct_solve:
+        t_start = time.perf_counter()
+        X = direct_solver(B1, A)
+        print('Time spent for the direct solver: ', time.perf_counter() - t_start, ' seconds')
     
-    # t_start = time.perf_counter()
-    # X = direct_solver(B1, A)
-    # print('Time spent for the direct solver: ', time.perf_counter() - t_start, ' seconds')
-    
-    p = round(n / (max(np.log2(n / 25), 0) + 1))
-    # p = 60
-    
+    print('Solving linear system with B1')
     t_start = time.perf_counter()
-    U, V, W, approx_left = low_rank_solver(A, [A_first, B_first, C_first], B1, p)
-    print('Time spent for the low-rank solver: ', time.perf_counter() - t_start, ' seconds')
+    U, V, W, approx_left = low_rank_solver(A, [A_first, B_first, C_first], B1, p0)
+    print('Time spent for the low-rank solver (B1): ', time.perf_counter() - t_start, ' seconds')
     final_err = lin.norm(approx_left - B1.flatten()) / lin.norm(B1.flatten())
-    print(final_err)
+    print('Final relative error: ', final_err)
     
+    print('###################################')
+    print('Solving linear system with B2')
     t_start = time.perf_counter()
-    U, V, W, approx_left = low_rank_solver(A, [A_second, B_second, C_second], B2, p)
-    print('Time spent for the low-rank solver: ', time.perf_counter() - t_start, ' seconds')
+    U, V, W, approx_left = low_rank_solver(A, [A_second, B_second, C_second], B2, p0)
+    print('Time spent for the low-rank solver (B2): ', time.perf_counter() - t_start, ' seconds')
     final_err = lin.norm(approx_left - B2.flatten()) / lin.norm(B2.flatten())
-    print(final_err)    
+    print('Final relative error: ', final_err)   
     
-    # x_approx = compute_vec_tensor(U, V, W)
-    # X_approx = np.reshape(x_approx, (n, n, n))
-    
-    # print(lin.norm(x_approx - X.flatten()))

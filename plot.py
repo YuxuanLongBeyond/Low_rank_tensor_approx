@@ -36,20 +36,20 @@ plt.xlabel("n")
 plt.ylabel("Time taken (seconds)")
 plt.show()
 
-plt.figure()
-rank_B1 = [32, 35, 38, 42, 42, 42, 45, 44, 50, 59, 64, 70, 76]
+# plt.figure()
+# rank_B1 = [32, 35, 38, 42, 42, 42, 45, 44, 50, 59, 64, 70, 76]
 
-rank_B2 = [30, 32, 35, 37, 40, 39, 41, 40, 50, 54, 63, 69, 75, 79]
+# rank_B2 = [30, 32, 35, 37, 40, 39, 41, 40, 50, 54, 63, 69, 75, 79]
 
-start_rank = np.round(np.array(n_list) / (np.log2(np.array(n_list) / 25) + 1))
+# start_rank = np.round(np.array(n_list) / (np.log2(np.array(n_list) / 25) + 1))
 
-plt.plot(n_list[:-1], rank_B1, label = "B1")
-plt.plot(n_list, rank_B2, label = "B1")
-plt.plot(n_list, start_rank, label = "Start")
+# plt.plot(n_list[:-1], rank_B1, label = "B1")
+# plt.plot(n_list, rank_B2, label = "B1")
+# plt.plot(n_list, start_rank, label = "Start")
 
-plt.legend()
-# plt.title("")
-plt.xlabel("n")
-plt.ylabel("Rank")
-# plt.gca().set_aspect('equal', adjustable='box')
-plt.show()
+# plt.legend()
+# # plt.title("")
+# plt.xlabel("n")
+# plt.ylabel("Rank")
+# # plt.gca().set_aspect('equal', adjustable='box')
+# plt.show()
