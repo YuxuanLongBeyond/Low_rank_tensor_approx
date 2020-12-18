@@ -8,4 +8,4 @@ To reproduce the results for low-rank solver (ALS), please directly run the scri
 To test the direct solver (not recommended), please change the line 'use_direct_solve = 0' to 'use_direct_solve = 1' in the main script.  
 
 ## Remark
-The reported time consumption may not be reproduced. For instance, the results in Figure 1 are not reproducible.
+The reported time consumption may not be reproducible. For instance, the results in Figure 1 are not reproducible.
